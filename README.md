@@ -6,8 +6,8 @@ A simple and interactive Bill Splitter application that allows users to divide b
 
 You can view the live version of the app here:
 
-- [Vercel Deployment Link](YOUR_VERCEL_DEPLOYMENT_LINK)
-- [CodeSandbox Link](YOUR_CODESANDBOX_LINK)
+- [Vercel Deployment Link](https://bill-splitter-sg.vercel.app/)
+- [CodeSandbox Link](https://codesandbox.io/p/github/sakshgupta/BillSplitter/main)
 
 ## Features
 
