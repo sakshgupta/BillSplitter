@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import "tailwindcss/tailwind.css";
-import logo from "/favicon.png";
 
 export default function BillSplitter() {
   const [peopleCount, setPeopleCount] = useState(2);
@@ -158,10 +157,6 @@ export default function BillSplitter() {
 
   return (
     <div className="p-4">
-      <div className="flex items-center">
-        <img src={logo} alt="Logo" className="w-12 h-12 mr-4" />
-        <h1 className="text-2xl font-bold mb-4">Bill Splitter</h1>
-      </div>
       <div>
         <label className="block mb-2">Number of People:</label>
         <input
