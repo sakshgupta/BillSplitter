@@ -3,13 +3,15 @@ import "tailwindcss/tailwind.css";
 
 export default function BillSplitter() {
   const [peopleCount, setPeopleCount] = useState(2);
-  const [names, setNames] = useState(["Person 1", "Person 2"]);
+  // const [names, setNames] = useState(["Person 1", "Person 2"]);
   const [items, setItems] = useState([{ name: "", price: 0, belongsTo: [] }]);
   const [discounts, setDiscounts] = useState([0]);
   const [extraCharges, setExtraCharges] = useState([0]);
   const [taxPercentage, setTaxPercentage] = useState(0);
   const [totalItemsPrice, setTotalItemsPrice] = useState(0);
   const [billResult, setBillResult] = useState(null);
+  const [names, setNames] = useState(Array(peopleCount).fill(""));
+  const [showNameInputs, setShowNameInputs] = useState(false);
 
   const priceRefs = useRef([]);
 
@@ -155,9 +157,19 @@ export default function BillSplitter() {
     alert("Table copied to clipboard!");
   };
 
+  function sanitizeNames(names) {
+    return names.map((name, i) => {
+      if (name && name.trim()) {
+        return name.trim(); // If the name is provided and not empty, trim and return it.
+      } else {
+        return `Person ${i + 1}`; // Otherwise, return the default name.
+      }
+    });
+  }
+
   return (
     <div className="p-4">
-      <div>
+      <div className="relative">
         <label className="block mb-2">Number of People:</label>
         <input
           type="number"
@@ -167,7 +179,36 @@ export default function BillSplitter() {
           onChange={(e) => updatePeople(Number(e.target.value))}
           className="border p-2 mb-4 w-20"
         />
+        <button
+          onClick={() => setShowNameInputs(!showNameInputs)}
+          className="absolute top-1/2 right-2 transform -translate-y-1/2"
+          aria-label="Add Names"
+        >
+          <span
+            className="block w-4 h-4 bg-gray-500 rotate-180"
+            style={{
+              clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+            }}
+          ></span>
+        </button>
       </div>
+      {showNameInputs && (
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: peopleCount }).map((_, i) => (
+            <input
+              key={i}
+              type="text"
+              onChange={(e) => {
+                const newNames = [...names];
+                newNames[i] = e.target.value;
+                setNames(newNames);
+              }}
+              placeholder={`Person ${i + 1}`}
+              className="border p-2"
+            />
+          ))}
+        </div>
+      )}
       <div>
         <h2 className="text-lg font-bold mb-2">Bill Items</h2>
         {items.map((item, index) => (
@@ -199,7 +240,7 @@ export default function BillSplitter() {
               className="border p-2 mr-2"
             />
             <div className="flex gap-2">
-              {names.map((name, i) => (
+              {sanitizeNames(names).map((name, i) => (
                 <label key={i} className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -319,7 +360,7 @@ export default function BillSplitter() {
             <thead>
               <tr>
                 <th className="border border-gray-400 px-4 py-2">Items</th>
-                {names.map((name, i) => (
+                {sanitizeNames(names).map((name, i) => (
                   <th key={i} className="border border-gray-400 px-4 py-2">
                     {name}
                   </th>
