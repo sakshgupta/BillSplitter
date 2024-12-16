@@ -5,8 +5,12 @@ export default function BillSplitter() {
   const [peopleCount, setPeopleCount] = useState(2);
   // const [names, setNames] = useState(["Person 1", "Person 2"]);
   const [items, setItems] = useState([{ name: "", price: 0, belongsTo: [] }]);
-  const [discounts, setDiscounts] = useState([0]);
-  const [extraCharges, setExtraCharges] = useState([0]);
+  const [discounts, setDiscounts] = useState([
+    { value: 0, isPercentage: false },
+  ]);
+  const [extraCharges, setExtraCharges] = useState([
+    { value: 0, isPercentage: false },
+  ]);
   const [taxPercentage, setTaxPercentage] = useState(0);
   const [totalItemsPrice, setTotalItemsPrice] = useState(0);
   const [billResult, setBillResult] = useState(null);
@@ -42,23 +46,25 @@ export default function BillSplitter() {
   };
 
   const addDiscount = () => {
-    setDiscounts([...discounts, 0]);
+    setDiscounts((prev) => [...prev, { value: 0, isPercentage: false }]);
   };
 
-  const updateDiscount = (index, value) => {
-    const updatedDiscounts = [...discounts];
-    updatedDiscounts[index] = value;
-    setDiscounts(updatedDiscounts);
+  const updateDiscount = (index, updatedDiscount) => {
+    setDiscounts((prev) =>
+      prev.map((discount, i) => (i === index ? updatedDiscount : discount))
+    );
   };
 
   const addExtraCharge = () => {
-    setExtraCharges([...extraCharges, 0]);
+    setExtraCharges((prev) => [...prev, { value: 0, isPercentage: false }]);
   };
 
-  const updateExtraCharge = (index, value) => {
-    const updatedExtraCharges = [...extraCharges];
-    updatedExtraCharges[index] = value;
-    setExtraCharges(updatedExtraCharges);
+  const updateExtraCharge = (index, updatedExtraCharges) => {
+    setExtraCharges((prev) =>
+      prev.map((extraCharges, i) =>
+        i === index ? updatedExtraCharges : extraCharges
+      )
+    );
   };
 
   const calculateBill = () => {
@@ -77,13 +83,23 @@ export default function BillSplitter() {
     const totalBillBeforeExtras = personTotals.reduce((a, b) => a + b, 0);
 
     extraCharges.forEach((charge) => {
-      const ratio = charge / totalBillBeforeExtras;
+      var extraCharges = charge.value;
+      if (charge.isPercentage) {
+        extraCharges = (totalBillBeforeExtras * charge.value) / 100;
+      }
+
+      const ratio = extraCharges / totalBillBeforeExtras;
       personTotals = personTotals.map((total) => total + total * ratio);
     });
 
     // Apply discounts
     discounts.forEach((discount) => {
-      const ratio = discount / totalBillBeforeExtras;
+      var discountAmount = discount.value;
+      if (discount.isPercentage) {
+        discountAmount = (totalBillBeforeExtras * discount.value) / 100;
+      }
+
+      const ratio = discountAmount / totalBillBeforeExtras;
       personTotals = personTotals.map((total) => total - total * ratio);
     });
 
@@ -274,24 +290,42 @@ export default function BillSplitter() {
       <div className="mt-4">
         <h2 className="text-lg font-bold mb-2">Discounts</h2>
         {discounts.map((discount, index) => (
-          <input
-            key={index}
-            type="number"
-            placeholder="Discount"
-            value={discount}
-            onChange={(e) =>
-              updateDiscount(index, parseFloat(e.target.value) || 0)
-            }
-            onInput={(e) => {
-              if (
-                e.target.value.startsWith("0") &&
-                !e.target.value.startsWith("0.")
-              ) {
-                e.target.value = parseFloat(e.target.value); // Remove leading zero
+          <div key={index} className="flex items-center mb-2">
+            <input
+              type="number"
+              placeholder="Discount"
+              value={discount.value}
+              onChange={(e) =>
+                updateDiscount(index, {
+                  ...discount,
+                  value: parseFloat(e.target.value) || 0,
+                })
               }
-            }}
-            className="border p-2 mr-2 mb-2"
-          />
+              onInput={(e) => {
+                if (
+                  e.target.value.startsWith("0") &&
+                  !e.target.value.startsWith("0.")
+                ) {
+                  e.target.value = parseFloat(e.target.value); // Remove leading zero
+                }
+              }}
+              className="border p-2 mr-2"
+            />
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={discount.isPercentage}
+                onChange={(e) =>
+                  updateDiscount(index, {
+                    ...discount,
+                    isPercentage: e.target.checked,
+                  })
+                }
+                className="mr-2"
+              />
+              Percentage?
+            </label>
+          </div>
         ))}
         <button
           onClick={addDiscount}
@@ -303,24 +337,43 @@ export default function BillSplitter() {
       <div className="mt-4">
         <h2 className="text-lg font-bold mb-2">Extra Charges</h2>
         {extraCharges.map((charge, index) => (
-          <input
-            key={index}
-            type="number"
-            placeholder="Extra Charge"
-            value={charge}
-            onChange={(e) =>
-              updateExtraCharge(index, parseFloat(e.target.value) || 0)
-            }
-            onInput={(e) => {
-              if (
-                e.target.value.startsWith("0") &&
-                !e.target.value.startsWith("0.")
-              ) {
-                e.target.value = parseFloat(e.target.value); // Remove leading zero
+          <div key={index} className="flex items-center mb-2">
+            <input
+              key={index}
+              type="number"
+              placeholder="Extra Charge"
+              value={charge.value}
+              onChange={(e) =>
+                updateExtraCharge(index, {
+                  ...charge,
+                  value: parseFloat(e.target.value) || 0,
+                })
               }
-            }}
-            className="border p-2 mr-2 mb-2"
-          />
+              onInput={(e) => {
+                if (
+                  e.target.value.startsWith("0") &&
+                  !e.target.value.startsWith("0.")
+                ) {
+                  e.target.value = parseFloat(e.target.value); // Remove leading zero
+                }
+              }}
+              className="border p-2 mr-2 mb-2"
+            />
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={charge.isPercentage}
+                onChange={(e) =>
+                  updateExtraCharge(index, {
+                    ...charge,
+                    isPercentage: e.target.checked,
+                  })
+                }
+                className="mr-2"
+              />
+              Percentage?
+            </label>
+          </div>
         ))}
         <button
           onClick={addExtraCharge}
@@ -406,20 +459,43 @@ export default function BillSplitter() {
                 </td>
                 {billResult.baseTotals.map((baseTotal, i) => {
                   const finalTotal = billResult.personTotals[i];
+
+                  // Calculate Tax Amount
                   const taxAmount = (baseTotal * (taxPercentage / 100)).toFixed(
                     2
                   );
-                  const extraChargeAmount = (
-                    extraCharges.reduce((sum, charge) => sum + charge, 0) *
-                    (baseTotal /
-                      billResult.baseTotals.reduce((a, b) => a + b, 0))
-                  ).toFixed(2);
-                  const discountAmount = (
-                    discounts.reduce((sum, discount) => sum + discount, 0) *
-                    (baseTotal /
-                      billResult.baseTotals.reduce((a, b) => a + b, 0))
-                  ).toFixed(2);
 
+                  // Calculate Extra Charges Amount
+                  const extraChargeAmount = extraCharges
+                    .map((charges) =>
+                      charges.isPercentage
+                        ? (charges.value / 100) *
+                          billResult.baseTotals.reduce((a, b) => a + b, 0) *
+                          (baseTotal /
+                            billResult.baseTotals.reduce((a, b) => a + b, 0))
+                        : charges.value *
+                          (baseTotal /
+                            billResult.baseTotals.reduce((a, b) => a + b, 0))
+                    )
+                    .reduce((sum, amount) => sum + amount, 0)
+                    .toFixed(2);
+
+                  // Calculate Discount Amount
+                  const discountAmount = discounts
+                    .map((discount) =>
+                      discount.isPercentage
+                        ? (discount.value / 100) *
+                          billResult.baseTotals.reduce((a, b) => a + b, 0) *
+                          (baseTotal /
+                            billResult.baseTotals.reduce((a, b) => a + b, 0))
+                        : discount.value *
+                          (baseTotal /
+                            billResult.baseTotals.reduce((a, b) => a + b, 0))
+                    )
+                    .reduce((sum, amount) => sum + amount, 0)
+                    .toFixed(2);
+
+                  // Combine results with "/" delimitator
                   return (
                     <td
                       key={i}
