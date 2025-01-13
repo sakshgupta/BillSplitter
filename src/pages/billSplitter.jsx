@@ -3,8 +3,16 @@ import "tailwindcss/tailwind.css";
 
 export default function BillSplitter() {
   const [peopleCount, setPeopleCount] = useState(2);
-  // const [names, setNames] = useState(["Person 1", "Person 2"]);
-  const [items, setItems] = useState([{ name: "", price: 0, belongsTo: [] }]);
+  const [items, setItems] = useState([
+    {
+      name: "",
+      price: 0,
+      belongsTo: [],
+      splitMethod: "evenly", // Default to "evenly"
+      splitValues: [], // Used for amount, shares, and percentage methods
+    },
+  ]);
+
   const [discounts, setDiscounts] = useState([
     { value: 0, isPercentage: false },
   ]);
@@ -15,19 +23,38 @@ export default function BillSplitter() {
   const [totalItemsPrice, setTotalItemsPrice] = useState(0);
   const [billResult, setBillResult] = useState(null);
   const [names, setNames] = useState(Array(peopleCount).fill(""));
-  const [showNameInputs, setShowNameInputs] = useState(false);
+  const [showNameInputs, setShowNameInputs] = useState(true);
+  const [itemErrors, setItemErrors] = useState([]);
 
   const priceRefs = useRef([]);
 
   const addItem = () => {
-    setItems([...items, { name: "", price: 0, belongsTo: [] }]);
+    setItems((prevItems) => [
+      ...prevItems,
+      {
+        name: "",
+        price: 0,
+        belongsTo: [],
+        splitMethod: "evenly",
+        splitValues: [],
+      },
+    ]);
     priceRefs.current = [...priceRefs.current, null];
   };
 
-  const updateItem = (index, key, value) => {
-    const updatedItems = [...items];
-    updatedItems[index][key] = value;
-    setItems(updatedItems);
+  const updateItem = (index, field, value) => {
+    setItems((prevItems) =>
+      prevItems.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              [field]: value,
+              // Reset `splitValues` when changing `splitMethod`
+              ...(field === "splitMethod" ? { splitValues: [] } : {}),
+            }
+          : item
+      )
+    );
   };
 
   useEffect(() => {
@@ -68,46 +95,88 @@ export default function BillSplitter() {
   };
 
   const calculateBill = () => {
-    // Calculate bill splits before extra charges, taxes, and discounts
+    // Initialize totals for each person
     let personTotals = new Array(peopleCount).fill(0);
-    items.forEach((item) => {
-      const splitValue = item.price / item.belongsTo.length;
-      item.belongsTo.forEach((person) => {
-        personTotals[person] += splitValue;
-      });
+    let personItemBreakdown = items.map(() => new Array(peopleCount).fill(0));
+    const errors = [];
+
+    items.forEach((item, itemIndex) => {
+      if (item.splitMethod === "evenly") {
+        // Divide evenly
+        const splitValue = item.price / item.belongsTo.length;
+        item.belongsTo.forEach((person) => {
+          personTotals[person] += splitValue;
+          personItemBreakdown[itemIndex][person] = splitValue;
+        });
+      } else if (item.splitMethod === "amount") {
+        // Divide by specific amounts
+        const totalAssigned = item.splitValues.reduce((a, b) => a + b, 0);
+        if (totalAssigned !== item.price) {
+          errors[
+            itemIndex
+          ] = `Total assigned amount for an item does not match the actual price.`;
+          return;
+        }
+        item.splitValues.forEach((value, person) => {
+          personTotals[person] += value || 0;
+          personItemBreakdown[itemIndex][person] = value || 0;
+        });
+        errors[itemIndex] = null;
+      } else if (item.splitMethod === "shares") {
+        // Divide by shares (ratios)
+        const totalShares = item.splitValues.reduce((a, b) => a + b, 0);
+        item.splitValues.forEach((share, person) => {
+          const personPrice = (share / totalShares) * item.price || 0;
+          personTotals[person] += personPrice;
+          personItemBreakdown[itemIndex][person] = personPrice;
+        });
+      } else if (item.splitMethod === "percentage") {
+        // Divide by percentages
+        const totalPercentage = item.splitValues.reduce((a, b) => a + b, 0);
+        if (totalPercentage !== 100) {
+          errors[
+            itemIndex
+          ] = `Total percentage for an item is not adding up to 100%.`;
+          return;
+        }
+        item.splitValues.forEach((percentage, person) => {
+          const personPrice = (percentage / 100) * item.price || 0;
+          personTotals[person] += personPrice;
+          personItemBreakdown[itemIndex][person] = personPrice;
+        });
+        errors[itemIndex] = null;
+      }
     });
 
+    setItemErrors(errors); // Update the error state
     const baseTotals = [...personTotals];
 
     // Add extra charges
     const totalBillBeforeExtras = personTotals.reduce((a, b) => a + b, 0);
-
     extraCharges.forEach((charge) => {
-      var extraCharges = charge.value;
-      if (charge.isPercentage) {
-        extraCharges = (totalBillBeforeExtras * charge.value) / 100;
-      }
+      const chargeAmount = charge.isPercentage
+        ? (totalBillBeforeExtras * charge.value) / 100
+        : charge.value;
 
-      const ratio = extraCharges / totalBillBeforeExtras;
+      const ratio = chargeAmount / totalBillBeforeExtras;
       personTotals = personTotals.map((total) => total + total * ratio);
     });
 
     // Apply discounts
     discounts.forEach((discount) => {
-      var discountAmount = discount.value;
-      if (discount.isPercentage) {
-        discountAmount = (totalBillBeforeExtras * discount.value) / 100;
-      }
+      const discountAmount = discount.isPercentage
+        ? (totalBillBeforeExtras * discount.value) / 100
+        : discount.value;
 
       const ratio = discountAmount / totalBillBeforeExtras;
       personTotals = personTotals.map((total) => total - total * ratio);
     });
 
-    // Apply taxes
+    // Apply tax
     const taxMultiplier = 1 + taxPercentage / 100;
     personTotals = personTotals.map((total) => total * taxMultiplier);
 
-    return { baseTotals, personTotals };
+    return { baseTotals, personTotals, personItemBreakdown };
   };
 
   const handleSubmit = () => {
@@ -255,26 +324,81 @@ export default function BillSplitter() {
               onKeyDown={(e) => handlePriceKeyDown(e, index)}
               className="border p-2 mr-2"
             />
-            <div className="flex gap-2">
-              {sanitizeNames(names).map((name, i) => (
-                <label key={i} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={item.belongsTo.includes(i)}
-                    onChange={(e) => {
-                      const updatedBelongsTo = e.target.checked
-                        ? [...item.belongsTo, i]
-                        : item.belongsTo.filter((person) => person !== i);
-                      updateItem(index, "belongsTo", updatedBelongsTo);
-                    }}
-                    className="form-checkbox"
-                  />
-                  {name}
-                </label>
-              ))}
+
+            {/* Dropdown for Split Method */}
+            <div className="flex gap-2 items-center mt-2">
+              <select
+                value={item.splitMethod || "evenly"}
+                onChange={(e) =>
+                  updateItem(index, "splitMethod", e.target.value)
+                }
+                className="border p-2"
+              >
+                <option value="evenly">Evenly</option>
+                <option value="amount">By Amount</option>
+                <option value="shares">By Shares</option>
+                <option value="percentage">By Percentage</option>
+              </select>
+
+              {/* Show Inputs Based on Split Method */}
+              {item.splitMethod === "evenly" ? (
+                sanitizeNames(names).map((name, i) => (
+                  <label key={i} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={item.belongsTo.includes(i)}
+                      onChange={(e) => {
+                        const updatedBelongsTo = e.target.checked
+                          ? [...item.belongsTo, i]
+                          : item.belongsTo.filter((person) => person !== i);
+                        updateItem(index, "belongsTo", updatedBelongsTo);
+                      }}
+                      className="form-checkbox"
+                    />
+                    {name}
+                  </label>
+                ))
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {sanitizeNames(names).map((name, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span>
+                        {name} (
+                        {item.splitMethod === "amount"
+                          ? "₹"
+                          : item.splitMethod === "shares"
+                          ? ":"
+                          : "%"}
+                        )
+                      </span>
+                      <input
+                        type="number"
+                        placeholder={
+                          item.splitMethod === "amount"
+                            ? "₹"
+                            : item.splitMethod === "shares"
+                            ? ":"
+                            : "%"
+                        }
+                        value={item.splitValues?.[i] || ""}
+                        onChange={(e) => {
+                          const updatedSplitValues = [
+                            ...(item.splitValues || []),
+                          ];
+                          updatedSplitValues[i] =
+                            parseFloat(e.target.value) || 0;
+                          updateItem(index, "splitValues", updatedSplitValues);
+                        }}
+                        className="border p-2 w-16"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
+
         <div className="flex items-center">
           <button
             onClick={addItem}
@@ -406,7 +530,14 @@ export default function BillSplitter() {
       >
         Split Bill
       </button>
-      {billResult && (
+      <div className="mt-2">
+        {itemErrors && (
+          <span className="text-red-500 text-md whitespace-pre-line">
+            {itemErrors.join("\n")}
+          </span>
+        )}
+      </div>
+      {billResult && itemErrors.every((error) => !error) && (
         <div className="mt-6">
           <h2 className="text-lg font-bold mb-4">Bill Breakdown</h2>
           <table className="table-auto border-collapse border border-gray-400 w-full">
@@ -428,16 +559,17 @@ export default function BillSplitter() {
                       item.name || `Item ${index + 1}`
                     } (₹${item.price.toFixed(2)})`}
                   </td>
-                  {names.map((_, i) => (
-                    <td
-                      key={i}
-                      className="border border-gray-400 px-4 py-2 text-center"
-                    >
-                      {item.belongsTo.includes(i)
-                        ? (item.price / item.belongsTo.length).toFixed(2)
-                        : "0.00"}
-                    </td>
-                  ))}
+                  {/* Use pre-calculated values from billResult */}
+                  {billResult?.personItemBreakdown[index]?.map(
+                    (amount, personIndex) => (
+                      <td
+                        key={personIndex}
+                        className="border border-gray-400 px-4 py-2 text-center"
+                      >
+                        {amount.toFixed(2)}
+                      </td>
+                    )
+                  )}
                 </tr>
               ))}
               <tr>
