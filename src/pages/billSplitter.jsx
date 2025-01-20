@@ -40,6 +40,13 @@ export default function BillSplitter() {
       },
     ]);
     priceRefs.current = [...priceRefs.current, null];
+
+    // Delay focus to ensure the new item is rendered before focusing
+    setTimeout(() => {
+      var index = items.length;
+      const nextIndex = index;
+      priceRefs.current[nextIndex]?.focus();
+    }, 10);
   };
 
   const updateItem = (index, field, value) => {
@@ -195,12 +202,6 @@ export default function BillSplitter() {
     if (e.key === "Enter") {
       e.preventDefault();
       addItem(); // Add a new item
-
-      // Delay focus to ensure the new item is rendered before focusing
-      setTimeout(() => {
-        const nextIndex = index + 1;
-        priceRefs.current[nextIndex]?.focus();
-      }, 0);
     }
   };
 
